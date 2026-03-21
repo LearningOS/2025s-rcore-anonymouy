@@ -49,6 +49,9 @@ kernel:
 	@cargo build $(MODE_ARG)
 
 clean:
+	@cargo clean	
+
+allclean:
 	@cargo clean
 	@cd ../user && make clean
 
