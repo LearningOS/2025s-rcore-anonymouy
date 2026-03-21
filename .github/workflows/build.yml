@@ -31,10 +31,17 @@ jobs:
     container:
       image: duskmoon/dev-env:rcore-ci
     steps:
+      - name: Remove Cargo proxy config
+        run: |
+          unset RUSTUP_DIST_SERVER
+          unset RUSTUP_UPDATE_ROOT
+          unset CARGO_HTTP_MULTIPLEXING
+          # 删除或重置全局配置
+          rm ${CARGO_HOME}/config.toml || true
+          rm -rf rm ${CARGO_HOME}/registry/* || true
       - uses: actions/checkout@v4
       - name: Run tests
         run: |
-          rm -f ~/.cargo/config ~/.cargo/config.toml
           qemu-system-riscv64 --version
           rustup target add riscv64gc-unknown-none-elf
           git config --global --add safe.directory /__w/${{ github.event.repository.name }}/${{ github.event.repository.name }}
