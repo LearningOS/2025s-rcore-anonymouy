@@ -1,4 +1,7 @@
 //! Types related to task management
+use alloc::collections::btree_map::BTreeMap;
+use crate::mm::PageTable;
+
 use super::TaskContext;
 use crate::config::TRAP_CONTEXT_BASE;
 use crate::mm::{
@@ -13,6 +16,15 @@ pub struct TaskControlBlock {
 
     /// Maintain the execution status of the current process
     pub task_status: TaskStatus,
+
+    /// user time
+    pub user_time: usize,
+
+    /// kernel time
+    pub kernel_time: usize,
+
+    /// sys calls
+    pub calls: BTreeMap<usize, usize>,
 
     /// Application address space
     pub memory_set: MemorySet,
@@ -39,6 +51,24 @@ impl TaskControlBlock {
     pub fn get_user_token(&self) -> usize {
         self.memory_set.token()
     }
+    /// insert framed area
+    pub fn insert_framed_area(
+        &mut self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+        permission: MapPermission,
+    ) {
+        self.memory_set.insert_framed_area(start_va, end_va, permission);
+    }
+    /// unmap framed area
+    pub fn unmap_framed_area(
+        &mut self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+        page_table: &mut PageTable
+    ) -> bool {
+        self.memory_set.unmap_framed_area(start_va, end_va, page_table)
+    }
     /// Based on the elf info in program, build the contents of task in a new address space
     pub fn new(elf_data: &[u8], app_id: usize) -> Self {
         // memory_set with elf program headers/trampoline/trap context/user stack
@@ -55,9 +85,13 @@ impl TaskControlBlock {
             kernel_stack_top.into(),
             MapPermission::R | MapPermission::W,
         );
+        let calls: BTreeMap<usize, usize> = BTreeMap::new();
         let task_control_block = Self {
             task_status,
             task_cx: TaskContext::goto_trap_return(kernel_stack_top),
+            user_time: 0,
+            kernel_time: 0,
+            calls,
             memory_set,
             trap_cx_ppn,
             base_size: user_sp,

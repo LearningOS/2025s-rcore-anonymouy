@@ -7,7 +7,20 @@
     // For Rust Analyzer plugin users:
     "rust-analyzer.cargo.target": "riscv64gc-unknown-none-elf",
     "rust-analyzer.checkOnSave.allTargets": false,
+    "github.copilot.chat.cloudAgent.enabled": true,
+    "rust-analyzer.checkOnSave": true,
     // "rust-analyzer.cargo.features": [
     //     "board_qemu"
     // ]
+    "files.watcherExclude": {
+        "**/target/**": true,
+        "**/user/target/**": true,
+        "**/user/build/**": true,
+        "**/easy-fs/target/**": true,
+        "**/easy-fs-fuse/target/**": true,
+        "**/.git/**": true
+    },
+    "search.exclude": {
+        "**/target": true
+    }
 }
