@@ -50,6 +50,9 @@ kernel:
 
 clean:
 	@cargo clean
+
+allclean:
+	@cargo clean
 	@cd ../user && make clean
 
 disasm: kernel
