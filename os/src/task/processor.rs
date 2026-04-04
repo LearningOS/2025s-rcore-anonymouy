@@ -7,6 +7,7 @@
 use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
+use crate::mm::{MapPermission, PageTable};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
@@ -43,6 +44,23 @@ impl Processor {
     ///Get current task in cloning semanteme
     pub fn current(&self) -> Option<Arc<TaskControlBlock>> {
         self.current.as_ref().map(Arc::clone)
+    }
+
+    /// insert framed area
+    pub fn insert_framed_area(&self,
+        start_va: usize,
+        end_va: usize,
+        map_permission: MapPermission) {
+            self.current().unwrap().insert_framed_area(start_va, end_va, map_permission);
+    }
+
+    /// Unmap framed area
+    /// Consider unmap areas which is not distributed by the app itself
+    pub fn unmap_framed_area(&self,
+        start_va: usize,
+        end_va: usize,
+        page_table: &mut PageTable) -> bool {
+            self.current().unwrap().unmap_framed_area(start_va, end_va, page_table)
     }
 }
 
@@ -98,6 +116,21 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
         .unwrap()
         .inner_exclusive_access()
         .get_trap_cx()
+}
+
+/// Insert framed area
+pub fn insert_framed_area(start_va: usize,
+        end_va: usize,
+        permission: MapPermission) {
+    PROCESSOR.exclusive_access().insert_framed_area(start_va, end_va, permission);
+}
+
+/// Unmap framed area
+/// Consider unmap areas which is not distributed by the app itself
+pub fn unmap_framed_area(start_va: usize,
+        end_va: usize,
+        page_table: &mut PageTable) -> bool {
+    PROCESSOR.exclusive_access().unmap_framed_area(start_va, end_va, page_table)
 }
 
 ///Return to idle control flow for new scheduling

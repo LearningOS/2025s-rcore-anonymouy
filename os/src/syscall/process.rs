@@ -1,13 +1,14 @@
 //! Process management syscalls
 use alloc::sync::Arc;
+use crate::mm::{mmap, unmap, };
 
 use crate::{
     loader::get_app_data_by_name,
-    mm::{translated_refmut, translated_str},
+    mm::{translated_byte_buffer, translated_refmut, translated_str},
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next,
-    },
+    }, timer::get_time_us,
 };
 
 #[repr(C)]
@@ -106,29 +107,42 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+    trace!("kernel: sys_get_time");
+    let user_token = current_user_token();
+    // 由于指令对齐，因此我们不必担心usize数据被两页截断。
+    let v = translated_byte_buffer(user_token, _ts as *const u8, core::mem::size_of::<TimeVal>());
+    let time = get_time_us();
+    let sec = time / 1_000_000;
+    let usec = time % 1_000_000;
+    // 2. 将两个 usize 转化为底层的字节数组 (使用本地字节序 native endian)
+    let mut time_bytes = [0u8; 16]; // RV64 下两个 usize 正好是 16 字节
+    time_bytes[0..8].copy_from_slice(&sec.to_ne_bytes());
+    time_bytes[8..16].copy_from_slice(&usec.to_ne_bytes());
+
+    // 3. 像倒水一样，把这 16 个字节依次倒进 v 提供的一个或两个物理切片中
+    let mut offset = 0;
+    for slice in v {
+        let len = slice.len();
+        // 从 time_bytes 中截取对应长度的数据，复制到物理页切片中
+        slice.copy_from_slice(&time_bytes[offset .. offset + len]);
+        offset += len; // 移动水位线
+    }
+    0
 }
 
 /// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_mmap(_start: usize, _len: usize, _prot: usize) -> isize {
+    trace!("kernel: sys_mmap implemented!");
+    mmap(current_user_token(), _start, _len, _prot)
 }
 
 /// YOUR JOB: Implement munmap.
 pub fn sys_munmap(_start: usize, _len: usize) -> isize {
     trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
+        "kernel:pid[{}] sys_munmap IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    unmap(current_user_token(), _start, _len)
 }
 
 /// change data segment size

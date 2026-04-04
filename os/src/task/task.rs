@@ -2,7 +2,7 @@
 use super::TaskContext;
 use super::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 use crate::config::TRAP_CONTEXT_BASE;
-use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
+use crate::mm::{KERNEL_SPACE, MapPermission, MemorySet, PhysPageNum, VirtAddr, PageTable};
 use crate::sync::UPSafeCell;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
@@ -34,6 +34,25 @@ impl TaskControlBlock {
         let inner = self.inner_exclusive_access();
         inner.memory_set.token()
     }
+    
+    /// insert framed area
+    pub fn insert_framed_area(&self,
+        start_va: usize,
+        end_va: usize,
+        permission: MapPermission) {
+            let mut inner = self.inner.exclusive_access();
+            inner.insert_framed_area(start_va, end_va, permission);
+    }
+
+    /// unmap framed area
+    pub fn unmap_framed_area(&self,
+        start_va: usize,
+        end_va: usize,
+        page_table: &mut PageTable) -> bool {
+            let mut inner = self.inner.exclusive_access();
+            inner.unmap_framed_area(start_va, end_va, page_table)
+        }
+
 }
 
 pub struct TaskControlBlockInner {
@@ -84,6 +103,24 @@ impl TaskControlBlockInner {
     }
     pub fn is_zombie(&self) -> bool {
         self.get_status() == TaskStatus::Zombie
+    }
+    /// insert framed area
+    pub fn insert_framed_area(
+        &mut self,
+        start_va: usize,
+        end_va: usize,
+        permission: MapPermission,
+    ) {
+        self.memory_set.insert_framed_area(start_va.into(), end_va.into(), permission);
+    }
+    /// unmap framed area
+    pub fn unmap_framed_area(
+        &mut self,
+        start_va: usize,
+        end_va: usize,
+        page_table: &mut PageTable
+    ) -> bool {
+        self.memory_set.unmap_framed_area(start_va.into(), end_va.into(), page_table)
     }
 }
 

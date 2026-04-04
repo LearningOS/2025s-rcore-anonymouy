@@ -300,6 +300,22 @@ impl MemorySet {
             false
         }
     }
+
+    /// unmap framed area
+    pub fn unmap_framed_area(&mut self, start_va: VirtAddr, end_va: VirtAddr, page_table: &mut PageTable) -> bool {
+        if let Some(area) = self
+            .areas
+            .iter_mut()
+            .find(|area| 
+                area.vpn_range.get_start() == start_va.floor()
+                && area.vpn_range.get_end() == end_va.ceil())
+        {
+            area.unmap(page_table);
+            true
+        } else {
+            false
+        }
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {

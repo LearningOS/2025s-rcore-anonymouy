@@ -1,4 +1,7 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
+use crate::mm::{MapPermission};
+use crate::mm::address::VPNRange;
+use crate::task::{insert_framed_area, unmap_framed_area};
 use super::{frame_alloc, FrameTracker, PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
 use alloc::string::String;
 use alloc::vec;
@@ -212,4 +215,56 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .translate_va(VirtAddr::from(va))
         .unwrap()
         .get_mut()
+}
+
+/// function for mmap
+pub fn mmap(user_token: usize, _start: usize, _len: usize, _prot: usize) -> isize {
+    if _start & (1 << 12 - 1) != 0 || _prot > 7 || _prot == 0 {
+        return -1;
+    }
+    let page_table = PageTable::from_token(user_token);
+    let mut map_permissions = MapPermission::U;
+    if _prot & 1 != 0 {
+        map_permissions |= MapPermission::R;
+    }
+    if _prot & 2 != 0 {
+        map_permissions |= MapPermission::W;
+    }
+    if _prot & 4 != 0 {
+        map_permissions |= MapPermission::X;
+    }
+    // let map_area = MapArea::new(_start.into(), (_start + _len).into(), MapType::Framed, map_permissions);
+    let start: VirtAddr = _start.into();
+    // not aligned
+    if start.page_offset() != 0 {
+        return -1;
+    }
+    let end: VirtAddr = (_start + _len).into();
+    let vpn_range = VPNRange::new(start.floor(), end.ceil());
+    for vpn in vpn_range {
+        if let Some(pte) = page_table.translate(vpn) {
+            if pte.is_valid(){
+                return -1;
+            }
+        }
+    }
+    insert_framed_area(_start, _start + _len, map_permissions);
+    0
+}
+
+/// function for unmap
+pub fn unmap(user_token: usize, _start: usize, _len: usize) -> isize {
+    if _start & (1 << 12 - 1) != 0 {
+        return -1;
+    }
+    let mut page_table = PageTable::from_token(user_token);
+    // not aligned
+    if VirtAddr::from(_start).page_offset() != 0 {
+        return -1;
+    }
+    if unmap_framed_area(_start, _start + _len, &mut page_table) {
+        0
+    } else {
+        -1
+    }
 }
